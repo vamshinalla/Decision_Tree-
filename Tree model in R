@@ -1,0 +1,59 @@
+getwd()
+bh<-read.csv("BH.csv")
+str(bh)
+summary(bh)
+
+#---- Import Libraries ----#
+library(dplyr)
+library(rpart)
+library(irr)
+library(caret)
+library(rattle)
+library(rpart.plot)
+library(RColorBrewer)
+
+#---- Data Preparation. -----#
+names(bh)
+
+#Need to group Target var basis cus_employername Var.
+bh1<-select(bh,9,110)
+str(bh1)
+bh1$TARGET<-as.factor(bh1$TARGET)
+summary(bh1)
+
+#Delete missing values in target variable.
+index<-which(is.na(bh1$TARGET))
+bh1<-bh1[-index,]
+
+
+#----- Decision Tree Modelling. -----#
+#Build Decision Tree.
+mod<-rpart(TARGET~cus_employername,data=bh1,method="class",
+           control=rpart.control(cp=0.005,minsplit=2),parms = list(split="gini"))
+
+#Ploting the Tree.
+fancyRpartPlot(mod)
+
+options(scipen = 999)
+
+#Extracting the Rules.
+asRules(mod)
+#Node 2 has target 0 with probability 81%
+#Node3 has target 1 with probability 88%
+
+#Extracting Nodes.
+mod$node<-mod$where
+head(mod$node,50)
+
+#------ Solution for Business Requirement ------#
+#Code/Procedure to create a dummy variable denoting rows of the data that correspond to 
+#"Group 1" and rows that correspond to "Group 2".
+bh1%>%mutate(Groups=ifelse(mod$node==2,"Group1","Group2"))->bh1
+head(bh1,50)
+
+#Checking Bad Rate in each Group.
+bh1$Groups<-as.factor(bh1$Groups)
+table(bh1$Groups,bh1$TARGET)/(nrow(bh1))*100
+
+#As required, Group1 consists of all employer names where the bad rate is high. i.e. 50%.
+#And Group 2 consists of all the employer names where bad rate is low, i.e. 4.7%
